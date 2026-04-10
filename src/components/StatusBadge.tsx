@@ -10,7 +10,6 @@ const SEVERITY_COLORS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-slate-400 text-white',
   ANALYZING: 'bg-violet-500 text-white animate-pulse',
-  FIX_GENERATED: 'bg-cyan-500 text-white',
   AWAITING_APPROVAL: 'bg-amber-500 text-white',
   APPROVED: 'bg-green-600 text-white',
   REJECTED: 'bg-slate-600 text-white',

@@ -45,3 +45,8 @@ prisma/dev.db
 prisma/dev.db-journal
 
 /src/generated/prisma
+
+# Atlana Temporary Scan Results
+atlana-results.sarif
+atlana-pr-comment.md
+test.Dockerfile

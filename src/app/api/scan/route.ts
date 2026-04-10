@@ -5,7 +5,7 @@ import { analyzeIaC } from '@/lib/agent/analyzer'
 
 const ScanRequestSchema = z.object({
   content: z.string().min(1).max(50000),
-  resourcePath: z.string().min(1).max(100),
+  resourcePath: z.string().min(1).max(100).regex(/^[\w.\-/ ]+$/, 'Invalid resource path'),
 })
 
 export async function POST(request: NextRequest) {

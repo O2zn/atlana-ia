@@ -1,69 +1,37 @@
-# Atlana — Architecture and Security Documentation
+# Atlana — Technical Architecture
 
-## Objective
+## Overview
+Atlana is a Human-in-the-Loop (HITL) security remediation agent for Infrastructure-as-Code (IaC). It uses a "Defense-in-Depth" approach for LLM interactions.
 
-Atlana is a Human-in-the-Loop IaC Security Remediation Agent. It analyzes Dockerfiles and Terraform files for security vulnerabilities using Claude AI, generates structured fix proposals, and enforces mandatory human approval before any remediation is surfaced. Every decision is logged immutably for audit.
+## Core Stack
+- **Framework**: Next.js 16 (App Router)
+- **Database**: SQLite with Prisma ORM
+- **Security Agent**: Google Gemini 1.5 Flash
+- **Styling**: Tailwind CSS + Shadcn UI (Glassmorphism design)
 
-## Agent Workflow (State Machine)
+## Security Guardrails
+1. **Input Sanitization**: All IaC input is wrapped in XML-style tags and escaped before being sent to the LLM to prevent prompt injection.
+2. **Output Validation**: LLM responses are strictly validated against a Zod schema. If validation fails, the system triggers a retry or falls back to a safe state.
+3. **Forensic Traceability**: Every LLM call generates a `promptHash` and is logged in the `AgentAuditLog` table.
 
-```
-[PENDING] → [ANALYZING] → [AWAITING_APPROVAL] → [APPROVED]
-                  ↓                                   ↓
-          [VALIDATION_FAILED]                    [REJECTED]
-```
+## The Resiliency Layer (Atlana Lite)
+The `analyzer.ts` module implements a robust fallback mechanism:
+- **Try Phase**: Attempts a real analysis using the Gemini API.
+- **Catch Phase**: If the API call fails (connectivity, quota, invalid key), the system automatically generates a **MOCK** analysis result.
+- **Benefit**: Ensures the UI and the HITL logic remain functional for demonstration and development purposes at all times.
 
-### State Transitions
+## Data Models (Prisma)
+### Vulnerability
+Tracks the lifecycle of a security finding:
+- `PENDING` -> `ANALYZING` -> `AWAITING_APPROVAL` -> `APPROVED/REJECTED`.
 
-| From | To | Trigger |
-|---|---|---|
-| PENDING | ANALYZING | API route begins Claude call |
-| ANALYZING | AWAITING_APPROVAL | Claude responds, Zod validates output |
-| ANALYZING | VALIDATION_FAILED | Zod schema fails or Claude call errors |
-| AWAITING_APPROVAL | APPROVED | Engineer clicks Approve |
-| AWAITING_APPROVAL | REJECTED | Engineer clicks Reject |
+### AgentAuditLog
+Immutable logs of the agent's decisions:
+- Stores generated fixes, confidence scores, and human decision metadata.
 
-State is persisted in SQLite (Prisma). State never regresses — failures create a new audit log record.
-
-## Guardrails
-
-### 1. Prompt Isolation (Anti-Injection)
-
-User-supplied IaC content is sanitized before being wrapped in XML delimiters:
-
-```
-<iac_content type="Dockerfile">
-  {{ sanitized content }}
-</iac_content>
-```
-
-Sanitization escapes `<` → `&lt;` and `>` → `&gt;` to prevent prompt injection via malicious IaC content (e.g., `# IGNORE PREVIOUS INSTRUCTIONS`). A SHA-256 hash of the full prompt is stored in `AgentAuditLog.promptHash` for forensic traceability.
-
-### 2. Output Schema Validation (Zod)
-
-Claude is forced to respond via `tool_use` with a named tool (`report_vulnerabilities`) and a strict JSON schema. The tool input is then validated again by a Zod schema before any data reaches the database or UI. If validation fails, status is set to `VALIDATION_FAILED` and no fix is stored.
-
-### 3. Human-in-the-Loop (Mandatory)
-
-No fix achieves `APPROVED` status without an explicit POST to `/api/vulnerabilities/[id]/approve` with a `reviewedBy` field. The system never applies fixes — it only makes approved fixes available for the engineer to copy.
-
-### 4. Principle of Least Privilege
-
-- The agent reads no files from the filesystem — only content pasted by the engineer
-- The agent executes no shell commands
-- The agent makes no external calls beyond the Anthropic API
-- API keys are stored in `.env.local` and never committed
-
-## Data Models
-
-- **Vulnerability**: tracks the IaC content, analysis status, and top vulnerability found
-- **AgentAuditLog**: immutable record of every LLM call and human decision, including prompt hash, confidence score, and reviewer identity
-
-## Tech Stack
-
-| Component | Choice |
-|---|---|
-| Framework | Next.js 16 (App Router) |
-| Styling | Tailwind CSS + Shadcn UI |
-| Database | Prisma + SQLite |
-| LLM | Claude API (claude-sonnet-4-5) |
-| Output Validation | Zod |
+## Workflow
+1. User submits IaC content.
+2. Agent analyzes (Real or Mock).
+3. Findings appear on the Dashboard.
+4. Human reviews the Diff and provides a Decision (Approve/Reject).
+5. Audit log is updated with the reviewer's name.

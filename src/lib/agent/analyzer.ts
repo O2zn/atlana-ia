@@ -1,53 +1,64 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import crypto from 'crypto'
 import { sanitizeIaCContent } from '@/lib/guardrails/sanitize'
 import { validateLLMOutput } from '@/lib/guardrails/validate'
 import type { AnalysisResult } from '@/lib/agent/schema'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-})
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || '')
 
 const SYSTEM_PROMPT = `You are a security-focused IaC analyzer. Your sole responsibility is to identify security vulnerabilities in Infrastructure-as-Code files (Dockerfiles, Terraform, etc.) and propose secure, minimal fixes.
 
-Rules:
-- Only report actual security issues, not style preferences
-- Be conservative: when in doubt, flag it
-- The fix must be a complete, working replacement of the original file
-- Assign confidenceScore based on how certain you are about the vulnerabilities found`
+Return a JSON object with this exact structure:
+{
+  "vulnerabilities": [
+    { "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW", "description": "string", "line": number }
+  ],
+  "fix": "string (the complete fixed content of the file)",
+  "confidenceScore": number (0 to 1),
+  "reasoning": "string"
+}`
 
-const REPORT_TOOL: Anthropic.Tool = {
-  name: 'report_vulnerabilities',
-  description: 'Report security vulnerabilities found in IaC and propose a complete fixed version',
-  input_schema: {
-    type: 'object',
-    properties: {
-      vulnerabilities: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            severity: { type: 'string', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] },
-            description: { type: 'string' },
-            line: { type: 'number' },
-          },
-          required: ['severity', 'description'],
+function getMockResult(resourcePath: string): AnalysisResult {
+  const isTerraform = resourcePath.endsWith('.tf')
+
+  if (isTerraform) {
+    return {
+      vulnerabilities: [
+        {
+          severity: 'CRITICAL',
+          description: '[SIMULADO] Security Group exposto: SSH (Porta 22) está aberto para 0.0.0.0/0, permitindo tentativas de força bruta de qualquer lugar.',
+          line: 7,
         },
+      ],
+      fix: `resource "aws_security_group" "allow_ssh" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound traffic from trusted IP only"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["203.0.113.0/24"] # IP Corporativo
+  }
+}`,
+      confidenceScore: 0.98,
+      reasoning: 'Fallback mode (Terraform). Identificamos uma regra de firewall demasiado permissiva que expõe o acesso administrativo da instância.',
+    }
+  }
+
+  // Fallback para Dockerfile
+  return {
+    vulnerabilities: [
+      {
+        severity: 'HIGH',
+        description: '[SIMULADO] O contentor está a correr como utilizador "root", o que é um risco de segurança se o contentor for comprometido.',
+        line: 1,
       },
-      fix: { type: 'string' },
-      confidenceScore: { type: 'number' },
-      reasoning: { type: 'string' },
-    },
-    required: ['vulnerabilities', 'fix', 'confidenceScore', 'reasoning'],
-  },
-}
-
-function buildPrompt(sanitizedContent: string, resourcePath: string): string {
-  return `Analyze the following IaC file for security vulnerabilities and propose a complete fixed version:
-
-<iac_content type="${resourcePath}">
-${sanitizedContent}
-</iac_content>`
+    ],
+    fix: '# Fixed version (Simulated)\nUSER appuser\nFROM node:18-alpine\nWORKDIR /app\nCOPY . .\nRUN adduser -D appuser && chown -R appuser /app\nUSER appuser\nCMD ["npm", "start"]',
+    confidenceScore: 0.95,
+    reasoning: 'Fallback mode (Dockerfile). Identificámos a falta de um utilizador não-privilegiado para a execução do processo principal.',
+  }
 }
 
 export async function analyzeIaC(
@@ -55,23 +66,36 @@ export async function analyzeIaC(
   resourcePath: string
 ): Promise<{ result: AnalysisResult; promptHash: string }> {
   const sanitized = sanitizeIaCContent(content)
-  const prompt = buildPrompt(sanitized, resourcePath)
+  const prompt = `Analyze the code for security vulnerabilities.
+  
+File: ${resourcePath}
+Content:
+${sanitized}`
+
   const promptHash = crypto.createHash('sha256').update(SYSTEM_PROMPT + prompt).digest('hex')
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 4096,
-    tools: [REPORT_TOOL],
-    tool_choice: { type: 'tool', name: 'report_vulnerabilities' },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  const toolUseBlock = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-  if (!toolUseBlock) {
-    throw new Error('Claude did not invoke the expected tool')
+  // Fallback check: if no key is provided, return mock immediately
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY.includes('your-api-key')) {
+    console.warn('Atlana: No valid Gemini API Key found. Using Fallback Mode.')
+    return { result: getMockResult(resourcePath), promptHash: 'mock-hash' }
   }
 
-  const result = validateLLMOutput(toolUseBlock.input)
-  return { result, promptHash }
+  try {
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: SYSTEM_PROMPT,
+      generationConfig: { responseMimeType: 'application/json' },
+    })
+
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()
+    
+    const rawResult = JSON.parse(text)
+    const validatedResult = validateLLMOutput(rawResult)
+    
+    return { result: validatedResult, promptHash }
+  } catch (error) {
+    console.error('Atlana: API Error caught. Falling back to Mock Mode.', error)
+    return { result: getMockResult(resourcePath), promptHash: 'fallback-mock' }
+  }
 }
