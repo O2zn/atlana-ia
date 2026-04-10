@@ -1,0 +1,58 @@
+name: "Atlana Security Scan"
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  atlana-scan:
+    name: "Atlana IaC Scan"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: "Install Dependencies"
+        run: npm ci
+
+      - name: "Get Changed Files"
+        id: files
+        run: |
+          # Get list of added/modified IaC files
+          FILES=$(git diff --name-only origin/main...HEAD | grep -E '\.tf$|Dockerfile' | tr '\n' ' ')
+          echo "iac_files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: "Run Atlana Scan"
+        if: steps.files.outputs.iac_files != ''
+        env:
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: npx tsx src/scripts/scan-cli.ts ${{ steps.files.outputs.iac_files }}
+
+      - name: "Upload SARIF to GitHub Security"
+        if: steps.files.outputs.iac_files != '' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: atlana-results.sarif
+          category: atlana
+
+      - name: "Post PR Comment"
+        if: github.event_name == 'pull_request' && steps.files.outputs.iac_files != '' && always()
+        uses: maroon-v/sticky-pull-request-comment@v2
+        with:
+          path: atlana-pr-comment.md
+          header: atlana-report

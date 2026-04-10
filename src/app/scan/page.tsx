@@ -27,21 +27,26 @@ export default function ScanPage() {
     setLoading(true)
     setError(null)
 
-    const response = await fetch('/api/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, resourcePath }),
-    })
+    try {
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, resourcePath }),
+      })
 
-    if (!response.ok) {
-      const data = await response.json()
-      setError(data.error ?? 'Scan failed')
+      if (!response.ok) {
+        const data = await response.json()
+        setError(data.error ?? 'Scan failed')
+        return
+      }
+
+      router.push('/')
+      router.refresh()
+    } catch {
+      setError('Network error — please check your connection and try again.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    router.push('/')
-    router.refresh()
   }
 
   return (
