@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import crypto from 'crypto'
-import { sanitizeIaCContent } from '@/lib/guardrails/sanitize'
-import { validateLLMOutput } from '@/lib/guardrails/validate'
-import type { AnalysisResult } from '@/lib/agent/schema'
+import { sanitizeIaCContent } from '../guardrails/sanitize'
+import { validateLLMOutput } from '../guardrails/validate'
+import type { AnalysisResult } from './schema'
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || '')
 

@@ -1,37 +1,28 @@
-# Atlana — Technical Architecture
+# Arquitetura do Atlana (Headless Agent)
 
-## Overview
-Atlana is a Human-in-the-Loop (HITL) security remediation agent for Infrastructure-as-Code (IaC). It uses a "Defense-in-Depth" approach for LLM interactions.
+O Atlana é composto por três camadas principais que garantem uma análise de segurança rápida, precisa e resiliente no fluxo de CI/CD.
 
-## Core Stack
-- **Framework**: Next.js 16 (App Router)
-- **Database**: SQLite with Prisma ORM
-- **Security Agent**: Google Gemini 1.5 Flash
-- **Styling**: Tailwind CSS + Shadcn UI (Glassmorphism design)
+## 1. Core Engine (The Brain)
+Localizado em `src/lib/agent/analyzer.ts`.
+- **Analisador Gemini**: Utiliza o modelo `gemini-1.5-flash` para interpretar o conteúdo do IaC.
+- **Estruturação de Dados**: Converte a linguagem natural da IA num objeto JSON estruturado (conforme definido em `schema.ts`).
+- **Resiliência (Atlana Lite)**: Implementa um sistema de *fallback* para dados simulados caso a API da Google esteja inacessível, garantindo que o pipeline de CI nunca bloqueie o desenvolvimento.
 
-## Security Guardrails
-1. **Input Sanitization**: All IaC input is wrapped in XML-style tags and escaped before being sent to the LLM to prevent prompt injection.
-2. **Output Validation**: LLM responses are strictly validated against a Zod schema. If validation fails, the system triggers a retry or falls back to a safe state.
-3. **Forensic Traceability**: Every LLM call generates a `promptHash` and is logged in the `AgentAuditLog` table.
+## 2. Guardrails (The Shield)
+Localizado em `src/lib/guardrails/`.
+- **Sanitização (`sanitize.ts`)**: Limpa o input antes de ser enviado para a IA, protegendo contra abusos de prompt.
+- **Validação (`validate.ts`)**: Utiliza **Zod** para garantir que o output da IA segue rigorosamente o esquema esperado pelo repositório GitHub.
 
-## The Resiliency Layer (Atlana Lite)
-The `analyzer.ts` module implements a robust fallback mechanism:
-- **Try Phase**: Attempts a real analysis using the Gemini API.
-- **Catch Phase**: If the API call fails (connectivity, quota, invalid key), the system automatically generates a **MOCK** analysis result.
-- **Benefit**: Ensures the UI and the HITL logic remain functional for demonstration and development purposes at all times.
+## 3. Interface CLI/GitHub (The Body)
+Localizado em `src/scripts/scan-cli.ts` e `.github/workflows/`.
+- **CLI Wrapper**: Lê os ficheiros alterados no repositório e coordena a análise.
+- **SARIF Exporter**: Gera o relatório no formato `Static Analysis Results Interchange Format` para integração imediata no GitHub Security.
+- **PR Automator**: Converte a análise num comentário Markdown de alta legibilidade para Pull Requests.
 
-## Data Models (Prisma)
-### Vulnerability
-Tracks the lifecycle of a security finding:
-- `PENDING` -> `ANALYZING` -> `AWAITING_APPROVAL` -> `APPROVED/REJECTED`.
+---
 
-### AgentAuditLog
-Immutable logs of the agent's decisions:
-- Stores generated fixes, confidence scores, and human decision metadata.
-
-## Workflow
-1. User submits IaC content.
-2. Agent analyzes (Real or Mock).
-3. Findings appear on the Dashboard.
-4. Human reviews the Diff and provides a Decision (Approve/Reject).
-5. Audit log is updated with the reviewer's name.
+## Fluxo de Execução
+1.  **Gatilho**: O GitHub Action deteta alterações em `.tf` ou `Dockerfile`.
+2.  **Análise**: O CLI executa o `analyzer.ts` para cada ficheiro.
+3.  **Filtragem**: Apenas ficheiros com vulnerabilidades reais (ou simuladas no fallback) geram alertas.
+4.  **Feedback**: O PR é comentado com o diagnóstico e o "Fix" sugerido.

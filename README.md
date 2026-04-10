@@ -1,76 +1,60 @@
-# Atlana — Segurança em IaC com IA e Aprovação Humana
+# Atlana — Agente de Segurança IaC Inteligente (Headless)
 
-O Atlana é um **Agente de Segurança** para infraestrutura. Ele analisa ficheiros de configuração (como Dockerfiles e Terraform) para encontrar falhas de segurança e sugere correções prontas a aplicar.
+O Atlana é um **Agente de Segurança Autónomo** desenhado para proteger o teu código de infraestrutura (Terraform e Dockerfiles). Ele atua diretamente no teu fluxo de desenvolvimento (**CI/CD**), analisando vulnerabilidades e propondo correções prontas a aplicar via **GitHub Actions**.
 
-> [!NOTE]
-> **A Filosofia do Atlana:** Nenhum "robô" deve mudar a tua infraestrutura sem que um humano veja primeiro. É por isso que o Atlana segue o modelo **Human-in-the-Loop (HITL)**.
-
----
-
-## 🔬 Como o Atlana funciona? (Metáfora)
-
-Imagina que o Atlana é uma espécie de **Máquina de Raio-X inteligente** para o código do teu servidor.
-
-### 1. O Scan (Raio-X) 📡
-Tu dás ao Atlana o código que descreve o teu servidor (ex: "Quero um computador com Linux e Node.js"). O Atlana "tira uma foto" (Scan) desse código.
-
-### 2. O Diagnóstico (IA Gemini 1.5) 🧠
-O código é analisado por um motor de IA (**Google Gemini 1.5 Flash**) que procura "sinais vitais" anormais como portas abertas ou privilégios root excessivos.
-
-### 3. O Sistema de Resiliência (Atlana Lite) 🛡️
-O Atlana foi desenhado para **nunca falhar**. Se a internet falhar ou a chave de IA não estiver a funcionar, o sistema entra em **Modo Fallback (Simulação)**, gerando diagnósticos realistas para o tipo de ficheiro fornecido.
+> [!IMPORTANT]
+> **Versão Headless**: Esta versão do Atlana foca-se na eficiência máxima. Em vez de um dashboard visual, o Atlana integra-se nativamente no teu repositório de código, agindo como um "guarda-costas" automatizado.
 
 ---
 
-## 🚀 Do MVP para Produção: Próximos Passos
+## 🔬 Como o Atlana funciona?
 
-Este projeto foi desenhado como um MVP resiliente. Num ambiente corporativo real, o sistema evoluiria para:
-1.  **Multi-LLM Failover**: Alternar entre Gemini, GPT-4 ou modelos locais se um falhar.
-2.  **Integração SAST Fallback**: Usar ferramentas como Checkov ou Hadolint se a IA estiver offline.
-3.  **Processamento Assíncrono**: Uso de filas para scans em massa.
+Imagina o Atlana como uma **Sentinela 24/7** que vigia o teu repositório.
+
+### 1. O Scan de Gatilho ⚡
+Sempre que um programador faz um "Push" ou abre um "Pull Request", o Atlana entra em ação. Ele identifica se houve mudanças em ficheiros sensíveis como `Dockerfile` ou `.tf`.
+
+### 2. O Diagnóstico Inteligente (Gemini 1.5) 🧠
+O Atlana envia o código para um motor de IA (**Google Gemini 1.5 Flash**) que analisa cada linha à procura de falhas críticas:
+-   **Portas abertas desnecessárias** (ex: SSH exposto ao mundo).
+-   **Privilégios root** (execução de processos com permissões excessivas).
+-   **Má configuração de rede** (Security Groups demasiado permissivos).
+
+### 3. A Resposta Imediata no GitHub 💬
+O Atlana publica um relatório diretamente no Pull Request, com:
+-   **Nível de Severidade**: (CRITICAL, HIGH, MEDIUM, LOW).
+-   **Explicação Didática**: Por que é que aquilo é um risco.
+-   **Fix Sugerido**: O código corrigido pronto para ser copiado.
+
+### 4. Integração nativa SARIF 🛡️
+Todos os alertas são exportados para a aba de **Security > Code Scanning** do GitHub, permitindo uma gestão centralizada de vulnerabilidades sem sair do repositório.
 
 ---
 
-## 🤖 Integração com GitHub (DevOps & CI/CD)
+## 🚀 Como usar no GitHub Actions
 
-O Atlana pode ser o "guarda-costas" de qualquer repositório.
-
-### Como usar no GitHub Actions:
 1.  Copia o ficheiro `.github/workflows/atlana-security.yml` para o teu repositório.
 2.  Configura a `GOOGLE_GENERATIVE_AI_API_KEY` nos **Secrets** do teu GitHub.
-3.  Sempre que houver um **Pull Request**, o Atlana irá:
-    -   Analisar ficheiros alterados (`.tf`, `Dockerfile`).
-    -   Publicar um comentário no PR com o relatório e o código de correção.
-    -   Enviar resultados SARIF para a aba **Security > Code Scanning**.
+3.  O Atlana começará a auditar cada sugestão de mudança automaticamente.
 
 ---
 
-## 🧪 Protocolo de Teste (Como verificar)
+## 🧪 Execução Manual (CLI)
 
-Para testar se a integração com o GitHub está a funcionar corretamente:
+Podes correr o Atlana localmente na tua máquina:
 
-1.  **Cria uma nova branch**: `git checkout -b teste-seguranca`
-2.  **Cria um ficheiro vulnerável**: Cria um `test.Dockerfile` com `FROM ubuntu:latest` e `USER root`.
-3.  **Faz Push e abre um PR**: Envia para o GitHub e abre um Pull Request para a `main`.
-4.  **Verifica o PR**: O Atlana deve comentar no PR com o relatório em menos de 2 minutos.
-5.  **Verifica o Security Tab**: Os resultados devem aparecer em *Security > Code Scanning*.
+```bash
+# Instalar dependências
+npm install
+
+# Analisar um ficheiro específico
+npm run scan -- path/to/your/file.tf
+```
 
 ---
 
 ## 🧰 Stack Tecnológica
-
-| Componente | Tecnologia | Função |
-|------------|------------|--------|
-| **Frontend** | Next.js 16 | A interface visual do dashboard. |
-| **Cérebro** | Gemini 1.5 Flash | O motor de IA que faz a análise. |
-| **CI/CD** | GitHub Actions | Automatização de scans em Pull Requests. |
-| **Relatórios** | SARIF | Formato padrão de segurança do GitHub. |
-
----
-
-## 🛠️ Como começar?
-
-1.  Clica em **"New Scan"**.
-2.  Usa o exemplo por defeito e clica em **"Analyze"**.
-3.  Vai ao **Dashboard** e revê a vulnerabilidade.
-4.  Clica em **"Approve"** para simular a aceitação da correção.
+- **Motor de IA**: Google Gemini 1.5 Flash.
+- **Linguagem**: TypeScript (Headless Node.js).
+- **Integração**: GitHub Actions + SARIF.
+- **Validação**: Zod + Sanitize Guardrails.
