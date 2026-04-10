@@ -4,7 +4,7 @@ O Atlana é composto por três camadas principais que garantem uma análise de s
 
 ## 1. Core Engine (The Brain)
 Localizado em `src/lib/agent/analyzer.ts`.
-- **Analisador Gemini**: Utiliza o modelo `gemini-1.5-flash` para interpretar o conteúdo do IaC.
+- **Analisador Gemini**: Utiliza o modelo `gemini-2.5-flash` para interpretar o conteúdo do IaC.
 - **Estruturação de Dados**: Converte a linguagem natural da IA num objeto JSON estruturado (conforme definido em `schema.ts`).
 - **Resiliência (Atlana Lite)**: Implementa um sistema de *fallback* para dados simulados caso a API da Google esteja inacessível, garantindo que o pipeline de CI nunca bloqueie o desenvolvimento.
 
