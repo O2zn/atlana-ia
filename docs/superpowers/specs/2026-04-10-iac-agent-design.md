@@ -23,13 +23,13 @@ Atlana is a Human-in-the-Loop IaC security remediation agent. An engineer pastes
 
 ## Stack
 
-| Component | Choice | Reason |
+| Component               | Choice                  | Reason |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | UI + API routes in a single process |
-| Styling | Tailwind CSS | Fast production-quality UI |
-| Database | Prisma + SQLite | Local audit trail, zero infrastructure |
-| LLM | Claude API (`claude-sonnet-4-6`) | Structured outputs, reliable for live demo |
-| Output Validation | Zod | Strict schema enforcement on LLM output |
+| Framework               | Next.js 16 (App Router) | UI + API routes in a single process |
+| Styling                 | Tailwind CSS + Shadcn UI| Fast production-quality UI |
+| Database                | Prisma + SQLite         | Local audit trail, zero infrastructure |
+| LLM                     | Claude API (sonnet 4.5) | Structured outputs, reliable for live demo |
+| Output Validation       | Zod                     | Strict schema enforcement on LLM output |
 
 **Excluded:** BullMQ + Redis — requires Redis infrastructure, out of scope for 4-day timeline. Workflow state is persisted in SQLite instead, making the state machine visible without a queue.
 
