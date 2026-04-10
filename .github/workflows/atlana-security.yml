@@ -52,7 +52,7 @@ jobs:
 
       - name: "Post PR Comment"
         if: github.event_name == 'pull_request' && steps.files.outputs.iac_files != '' && always()
-        uses: maroon-v/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: atlana-pr-comment.md
           header: atlana-report
