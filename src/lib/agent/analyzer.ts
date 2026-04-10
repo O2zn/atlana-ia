@@ -95,7 +95,11 @@ ${sanitized}`
     
     return { result: validatedResult, promptHash }
   } catch (error) {
-    console.error('Atlana: API Error caught. Falling back to Mock Mode.', error)
+    console.error('Atlana: API Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      rawError: error
+    })
     return { result: getMockResult(resourcePath), promptHash: 'fallback-mock' }
   }
 }
